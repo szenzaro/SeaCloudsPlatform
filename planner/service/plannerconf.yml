@@ -1,3 +1,10 @@
+server:
+  applicationConnectors:
+  - type: http
+    port: 1234
+  adminConnectors:
+  - type: http
+    port: 1235
 discovererURL: unknown
 credentialGeneratorURL: unknown
 monitorGeneratorURL: unknown

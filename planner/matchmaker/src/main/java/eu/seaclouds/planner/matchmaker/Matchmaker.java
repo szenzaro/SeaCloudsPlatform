@@ -64,24 +64,20 @@ public class Matchmaker {
             return new ConstraintValidValues<>(name, ((ValidValuesConstraint) c).getValidValuesTyped());
         }
         if(c instanceof InRangeConstraint){
-            //TODO
-            throw new UnsupportedOperationException();
+            InRangeConstraint rc = (InRangeConstraint) c;
+            return new ConstraintInRange<>(name, Integer.parseInt(rc.getRangeMinValue()), Integer.parseInt(rc.getRangeMaxValue()));
         }
         if(c instanceof LengthConstraint){
-            //TODO
-            throw new UnsupportedOperationException();
+            return new ConstraintLength<>(name, ((LengthConstraint) c).getLength());
         }
         if(c instanceof MaxLengthConstraint){
-            //TODO
-            throw new UnsupportedOperationException();
+            return new ConstraintMaxLength<>(name, ((MaxLengthConstraint) c).getMaxLength());
         }
         if(c instanceof MinLengthConstraint){
-            //TODO
-            throw new UnsupportedOperationException();
+           return new ConstraintMinLength<>(name, ((MinLengthConstraint) c).getMinLength());
         }
         if(c instanceof PatternConstraint){
-            //TODO
-            throw new UnsupportedOperationException();
+            return new ConstraintPattern<>(name, ((PatternConstraint) c).getCompiledPattern());
         }
 
         throw new UnsupportedOperationException("Unknown Constraint");
