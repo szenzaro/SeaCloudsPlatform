@@ -1,0 +1,368 @@
+brooklyn.catalog:
+  version: 0.8.0-SNAPSHOT
+  items:
+  - id: seaclouds-planner
+    name: "SeaClouds Planner"
+    description: "SeaClouds Planner server"
+    item:
+       type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+       id: planner
+       name: Planner
+
+       brooklyn.config:
+         runtimeFiles:
+           https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=eu.seaclouds-project&a=planner-service&v=LATEST&e=jar : planner-service.jar
+         planner.config.port: 1234
+         planner.config.discoverer.url: undefined
+         planner.config.optimizer.url: undefined
+         planner.config.monitor_generator.url: undefined
+         planner.config.sla_generator.url: undefined
+
+       shell.env:
+         PLANNER_PORT: $brooklyn:config("planner.config.port")
+         DISCOVERER_URL: $brooklyn:config("planner.config.discoverer.url")
+         OPTIMIZER_URL: $brooklyn:config("planner.config.optimizer.url")
+         MONITOR_GENERATOR_URL: $brooklyn:config("planner.config.monitor_generator.url")
+         SLA_GENERATOR_URL: $brooklyn:config("planner.config.sla_generator.url")
+
+       provisioning.properties:
+         osFamily: ubuntu
+
+       launch.command: |
+         sudo apt-get update
+         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated tzdata openjdk-7-jdk curl
+         tee ./conf.yml  <<EOF
+         server:
+           type: simple
+           applicationContextPath: /application
+           adminContextPath: /admin
+           connector:
+            type: http
+            port: ${PLANNER_PORT}
+         discovererURL: ${DISCOVERER_URL}
+         optimizerURL: ${OPTIMIZER_URL}
+         monitorGeneratorURL: ${MONITOR_GENERATOR_URL}
+         slaGeneratorURL: ${SLA_GENERATOR_URL}
+         EOF
+
+         nohup java -jar planner-service.jar server conf.yml > console.out 2>&1 &
+         echo $! > $PID_FILE
+  - id: seaclouds-dashboard
+    name: "SeaClouds Dashboard"
+    description: "SeaClouds Dashboard server"
+    item:
+      type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+      name: Dashboard
+      brooklyn.config:
+        runtimeFiles:
+          https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=eu.seaclouds-project&a=planner-service&v=LATEST&e=jar : dashboard.jar
+        dashboard.port: 8000
+        deployer.host: 127.0.0.1
+        deployer.port: 8081
+        sla.host: 127.0.0.1
+        sla.port: 1234
+        monitor.manager.host: 127.0.0.1
+        monitor.manager.port: 8170
+        monitor.grafana.host: 127.0.0.1
+        monitor.grafana.host: 3000
+        planner.host: 127.0.0.1
+        planner.port: 1234
+
+      shell.env:
+        DASHBOARD_PORT: $brooklyn:config("dashboard.port")
+        DASHBOARD_ADMIN_PORT: $brooklyn:config("dashboard.admin.port")
+        DEPLOYER_HOST: $brooklyn:config("deployer.host")
+        DEPLOYER_PORT: $brooklyn:config("deployer.port")
+        SLA_HOST: $brooklyn:config("sla.host")
+        SLA_PORT: $brooklyn:config("sla.port")
+        MONITOR_HOST: $brooklyn:config("monitor.manager.host")
+        MONITOR_PORT: $brooklyn:config("monitor.manager.port")
+        GRAFANA_HOST: $brooklyn:config("monitor.grafana.host")
+        GRAFANA_PORT: $brooklyn:config("monitor.grafana.host")
+        PLANNER_HOST: $brooklyn:config("planner.host")
+        PLANNER_PORT: $brooklyn:config("planner.port")
+
+      provisioning.properties:
+        osFamily: ubuntu
+
+      launch.command: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated tzdata openjdk-7-jdk wget curl
+        tee ./conf.yml  <<EOF
+        server:
+          type: simple
+          rootPath: /api/*
+          applicationContextPath: /
+          connector:
+            type: http
+            port: ${DASHBOARD_PORT}
+        deployer:
+          host: ${DEPLOYER_HOST}
+          port: ${DEPLOYER_PORT}
+        monitor:
+          host: ${MONITOR_HOST}
+          port: ${MONITOR_PORT}
+          grafanaHost: ${GRAFANA_HOST}
+          grafanaPort: ${GRAFANA_PORT}
+        sla:
+          host: ${SLA_HOST}
+          port: ${SLA_PORT}
+        planner:
+          host: ${PLANNER_HOST}
+          port: ${PLANNER_PORT}
+        EOF
+
+        nohup java -jar dashboard.jar server conf.yml > console.out 2>&1 &
+        echo $! > $PID_FILE
+  - id: seaclouds-monitor-dda
+    name: "SeaClouds Monitor DDA"
+    description: "SeaClouds Monitor DDA server"
+    item:
+      type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+      id: monitor-dda
+      name: Monitor DDA
+
+      brooklyn.config:
+        version: 0.2
+        install.version: 0.2
+        download.url: https://github.com/deib-polimi/tower4clouds/releases/download/v${version}/data-analyzer-${version}.tar.gz
+        monitor.dda.port: 8175
+
+      shell.env:
+        MONITOR_DDA_VERSION: $brooklyn:config("install.version")
+        MONITOR_MANAGER_PORT: $brooklyn:config("monitor.dda.port")
+
+      provisioning.properties:
+        osFamily: ubuntu
+
+      launch.command: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated tzdata openjdk-7-jdk wget > apt.log
+        cd data-analyzer-${MONITOR_DDA_VERSION}
+        nohup java -Xmx1200M -jar tower4clouds-data-analyzer.jar > %s 2>&1 &
+        echo $! > $PID_FILE
+  - id: seaclouds-monitor-manager
+    name: "SeaClouds Monitor Manager"
+    description: "SeaClouds Monitor Manager server"
+    item:
+      type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+      id: monitor-manager
+      name: Monitor Manager
+
+      brooklyn.config:
+        version: 0.2
+        install.version: 0.2
+        download.url: https://github.com/deib-polimi/tower4clouds/releases/download/v${version}/manager-server-${version}.tar.gz
+        monitor.manager.port: 8170
+        monitor.dda.host: 127.0.0.1
+        monitor.dda.port: 8175
+
+      shell.env:
+        MONITOR_MANAGER_VERSION: $brooklyn:config("install.version")
+        MONITOR_MANAGER_PORT: $brooklyn:config("monitor.manager.port")
+        MONITOR_DDA_HOST: $brooklyn:config("monitor.dda.host")
+        MONITOR_DDA_PORT: $brooklyn:config("monitor.dda.port")
+
+      provisioning.properties:
+        osFamily: ubuntu
+
+      launch.command: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated tzdata openjdk-7-jdk wget > apt.log
+        cd manager-server-${MONITOR_MANAGER_VERSION}
+        nohup java -Xmx1200M -jar tower4clouds-manager.jar -daip ${MONITOR_DDA_HOST} -daport ${MONITOR_DDA_PORT} -mmport ${MONITOR_MANAGER_PORT} > console.out 2>&1 &
+        echo $! > $PID_FILE
+  - id: seaclouds-deployer
+    name: "SeaClouds Deployer"
+    description: "SeaClouds Deployer server"
+
+    item:
+      type: org.apache.brooklyn.entity.brooklynnode.BrooklynNode
+      id: deployer
+      name: Deployer
+      version: 0.8.0-incubating
+
+      brooklyn.config:
+        onExistingProperties: do_not_use
+        brooklynnode.webconsole.nosecurity: true
+        brooklynnode.classpath:
+          - https://s3-eu-west-1.amazonaws.com/seaclouds-deployer/deployer-0.8.0-20151007.193920-32.jar
+      brooklyn.enrichers:
+        - enricherType: org.apache.brooklyn.enricher.stock.Transformer
+          brooklyn.config:
+            enricher.producer: $brooklyn:component("deployer")
+            enricher.sourceSensor: $brooklyn:sensor("brooklynnode.webconsole.up")
+            enricher.targetSensor: $brooklyn:sensor("service.process.isRunning")
+            enricher.targetValue: $brooklyn:component("deployer").attributeWhenReady("brooklynnode.webconsole.up")
+  - id: seaclouds-discoverer
+    name: "SeaClouds Discoverer"
+    description: "SeaClouds Discoverer server"
+    item:
+      type: org.apache.brooklyn.entity.webapp.tomcat.TomcatServer
+      id: discoverer
+      name: Discoverer
+      war: https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=eu.seaclouds-project&a=discoverer&v=LATEST&e=war
+
+      provisioning.properties:
+        osFamily: ubuntu
+  - id: seaclouds-influxdb
+    name: InfluxDB
+    description: InfluxDB Server
+    item:
+      type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+      id: influxdb
+      name: InfluxDB Server
+
+      brooklyn.config:
+        influxdb.port: 8086
+        influxdb.config.db.name: tower4clouds
+        influxdb.config.db.password: root
+
+      shell.env:
+        INFLUXDB_DB_NAME: $brooklyn:config("influxdb.config.db.name")
+        INFLUXDB_DB_USER: "root"
+        INFLUXDB_DB_PASSWORD: $brooklyn:config("influxdb.config.db.password")
+
+      provisioning.properties:
+        osFamily: ubuntu
+        required.ports:
+        - 22
+        - 8083
+        - 8086
+        - 8090
+        - 8099
+
+      install.command: |
+        sudo apt-get update -y
+        sudo apt-get install -y adduser libfontconfig wget
+        wget http://get.influxdb.org.s3.amazonaws.com/influxdb_0.8.9_amd64.deb
+        sudo dpkg -i influxdb_0.8.9_amd64.deb
+
+
+      customize.command: |
+        sudo service influxdb start
+        tee ./customize-influxdb.sh <<EOF
+        curl -X POST 'http://localhost:8086/cluster_admins/root?u=root&p=root' -d '{"password": "$INFLUXDB_DB_PASSWORD"}'
+        curl -X POST 'http://localhost:8086/db?u=$INFLUXDB_DB_USER&p=$INFLUXDB_DB_PASSWORD' -d '{"name": "$INFLUXDB_DB_NAME"}'
+        EOF
+        sleep 30s
+        sh customize-influxdb.sh
+        sudo service influxdb stop
+
+      launch.command: |
+        sudo service influxdb start
+        pidof influxdb > $PID_FILE
+
+      stop.command: |
+        sudo service influxdb stop
+  - id: seaclouds-grafana
+    name: Grafana Dashboard
+    description: Grafana Monitoring Dashboard
+    item:
+      type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+      id: grafana
+      name: Grafana Server
+
+      brooklyn.config:
+        grafana.port: 3000
+        grafana.config.user: admin
+        grafana.config.password: admin
+        grafana.config.influxdb.url: http://localhost:8086
+        grafana.config.influxdb.db.name: tower4clouds
+        grafana.config.influxdb.db.password: root
+
+      shell.env:
+        GRAFANA_PORT: $brooklyn:config("grafana.port")
+        GRAFANA_USER: $brooklyn:config("grafana.config.user")
+        GRAFANA_PASSWORD: $brooklyn:config("grafana.config.password")
+        INFLUX_DB_URL: $brooklyn:config("grafana.config.influxdb.url")
+        INFLUXDB_DB_NAME: $brooklyn:config("grafana.config.influxdb.db.name")
+        INFLUXDB_DB_USER: "root"
+        INFLUXDB_DB_PASSWORD: $brooklyn:config("grafana.config.influxdb.db.password")
+
+      provisioning.properties:
+        osFamily: ubuntu
+        required.ports:
+        - 22
+        - 3000
+
+      install.command: |
+        sudo apt-get update -y
+        sudo apt-get install -y adduser libfontconfig wget
+        wget https://grafanarel.s3.amazonaws.com/builds/grafana_2.5.0_amd64.deb
+        sudo dpkg -i grafana_2.5.0_amd64.deb
+
+      customize.command: |
+        sudo service grafana-server start
+        tee ./customize-grafana.sh <<EOF
+        curl -H "Content-Type: application/json" -X PUT -d '{"oldPassword": "admin", "newPassword": "$GRAFANA_PASSWORD", "confirmNew": "$GRAFANA_PASSWORD"}' http://admin:admin@localhost:$GRAFANA_PORT/api/user/password
+        curl -H "Content-Type: application/json" -X POST -d '{"name": "InfluxDB", "url": "$INFLUX_DB_URL", "type": "influxdb_08", "database": "$INFLUXDB_DB_NAME", "user": "$INFLUXDB_DB_USER", "password":"$INFLUXDB_DB_PASSWORD", "access": "proxy", "isDefault": true}' http://$GRAFANA_USER:$GRAFANA_PASSWORD@localhost:$GRAFANA_PORT/api/datasources
+        EOF
+        sleep 30s
+        sh customize-grafana.sh
+        sudo service grafana-server stop
+
+      launch.command: |
+        sudo service grafana-server start
+        pidof grafana-server > $PID_FILE
+
+      stop.command: |
+        sudo service grafana-server stop
+
+  - id: seaclouds-platform-on-byon
+    name: "SeaClouds Platform on BYON"
+    description: Seaclouds Platform deployed on Vagrant box(es)
+    itemType: template
+    item:
+      name: SeaClouds Platform on BYON
+      location:
+        byon:
+          user: vagrant
+          password: vagrant
+          hosts:
+            - 10.10.10.101
+
+      services:
+      - type: org.apache.brooklyn.entity.software.base.SameServerEntity
+        name: SeaClouds Platform
+        brooklyn.children:
+        - type: seaclouds-influxdb
+          name: seaclouds-influxdb
+          brooklyn.config:
+            influxdb.config.db.name: tower4clouds
+            influxdb.config.db.password: seaclouds
+        - type: seaclouds-grafana
+          name: seaclouds-grafana
+          brooklyn.config:
+            grafana.config.password: seaclouds
+            grafana.config.influxdb.url: $brooklyn:formatString("http://%s:%s", component("influxdb").attributeWhenReady("host.address"), component("influxdb").config("influxdb.port"))
+            grafana.config.influxdb.db.name: $brooklyn:component("influxdb").config("influxdb.config.db.name")
+            grafana.config.influxdb.db.password: $brooklyn:component("influxdb").config("influxdb.config.db.password")
+          install.latch: $brooklyn:component("influxdb").attributeWhenReady("service.isUp")
+
+
+  - id: seaclouds-platform
+    name: "SeaClouds Platform"
+    description: Seaclouds Platform deployed on a cloud
+    itemType: template
+    item:
+      name: SeaClouds Platform
+      location:
+        jclouds:aws-ec2:
+          identity:     <REPLACE>
+          credential:   <REPLACE>
+          region:       eu-west-1
+
+      services:
+      - type: seaclouds-influxdb
+        name: seaclouds-influxdb
+        brooklyn.config:
+          influxdb.config.db.name: tower4clouds
+          influxdb.config.db.password: seaclouds
+      - type: seaclouds-grafana
+        name: seaclouds-grafana
+        brooklyn.config:
+          grafana.config.password: seaclouds
+          grafana.config.influxdb.url: $brooklyn:formatString("http://%s:%s", component("influxdb").attributeWhenReady("host.address"), component("influxdb").config("influxdb.port"))
+          grafana.config.influxdb.db.name: $brooklyn:component("influxdb").config("influxdb.config.db.name")
+          grafana.config.influxdb.db.password: $brooklyn:component("influxdb").config("influxdb.config.db.password")

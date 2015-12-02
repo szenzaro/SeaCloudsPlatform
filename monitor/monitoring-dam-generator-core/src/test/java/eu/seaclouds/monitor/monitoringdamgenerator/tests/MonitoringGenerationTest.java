@@ -15,15 +15,19 @@ import java.util.Map;
 import org.testng.annotations.Test;
 
 import eu.seaclouds.monitor.monitoringdamgenerator.MonitoringDamGenerator;
+import eu.seaclouds.monitor.monitoringdamgenerator.MonitoringInfo;
 import eu.seaclouds.monitor.monitoringdamgenerator.adpparsing.Module;
 
 public class MonitoringGenerationTest {
 
 
     private static final double EXPECTED_RESPONSE_TIME_THRESHOLD = 2000.0;
+    private static final double EXPECTED_AVAILABILITY_THRESHOLD = 0.96;
+    private static final String TEST_PORT = "8080";
+
 
     @Test
-    public void mainTest() throws Exception {
+    public void monitoringInformationGenerationTest() throws Exception {
 
         MonitoringRules rules;
         Map<String, String> parametersTest;
@@ -31,76 +35,86 @@ public class MonitoringGenerationTest {
         MonitoringDamGenerator service = new MonitoringDamGenerator(
                 "127.0.0.1", "8170");
 
-        List<Module> returned = service
+        MonitoringInfo returned = service
                 .generateMonitoringInfo(readFile("resources/currentAtosAdpFromOptimizer.yml",
                         Charset.defaultCharset()));
 
-        for (Module i : returned) {
-            rules = i.getRules();
+        parametersTest = new HashMap<String, String>();
+
+        for (MonitoringRule rule : returned.getApplicationMonitoringRules().getMonitoringRules()) {
             
-            if(i.getHost().getRules()!=null){
-                rules.getMonitoringRules().addAll(i.getHost().getRules().getMonitoringRules());
-            }
+            String ruleType = rule.getId().split("_")[0];
+            String nodeTemplateId = rule.getId().split("_")[1];
+            
+            switch (ruleType) {
 
-            parametersTest = new HashMap<String, String>();
+            case "respTimeRule":
+                parametersTest.clear();
+                parametersTest.put("samplingProbability", "1");
+                TestUtils.testRule(rule, "10", "10", "InternalComponent",
+                        nodeTemplateId,
+                        "AvarageResponseTimeInternalComponent",
+                        parametersTest, null, null, null,
+                        "AvarageResponseTime_" + nodeTemplateId);
+                break;
 
-            for (MonitoringRule rule : rules.getMonitoringRules()) {
-                switch (rule.getId().split("_")[0]) {
+            case "respTimeSLARule":
+                parametersTest.clear();
+                parametersTest.put("samplingProbability", "1");
+                TestUtils.testRule(rule, "10", "10", "InternalComponent",
+                        nodeTemplateId,
+                        "AvarageResponseTimeInternalComponent",
+                        parametersTest, null, null, "METRIC > "
+                                + EXPECTED_RESPONSE_TIME_THRESHOLD,
+                        "AvarageResponseTimeViolation_" + nodeTemplateId);
+                break;
+                
+            case "appAvailableSLARule":
+                parametersTest.clear();
+                parametersTest.put("samplingProbability", "1");
+                parametersTest.put("path", "/");
+                parametersTest.put("port", TEST_PORT);
+                TestUtils.testRule(rule, "10", "10", "InternalComponent",
+                        nodeTemplateId,
+                        "AppAvailable",
+                        parametersTest, "Average", "InternalComponent", "METRIC < "
+                                + EXPECTED_AVAILABILITY_THRESHOLD,
+                        "AvarageAppAvailabilityViolation_" + nodeTemplateId);
+                break;
 
-                case "respTimeRule":
-                    parametersTest.clear();
-                    parametersTest.put("samplingProbability", "1");
-                    TestUtils.testRule(rule, "10", "10", "InternalComponent",
-                            i.getModuleName(),
-                            "AvarageResponseTimeInternalComponent",
-                            parametersTest, null, null, null,
-                            "AvarageResponseTime_" + i.getModuleName());
-                    break;
+            case "checkStatusRule":
+                parametersTest.clear();
+                parametersTest.put("samplingTime", "10");
+                TestUtils.testRule(rule, "10", "10", "InternalComponent",
+                        nodeTemplateId, "isAppOnFire", parametersTest,
+                        null, null, null,
+                        "ApplicationStatus_" + nodeTemplateId);
+                break;
 
-                case "respTimeSLARule":
-                    parametersTest.clear();
-                    parametersTest.put("samplingProbability", "1");
-                    TestUtils.testRule(rule, "10", "10", "InternalComponent",
-                            i.getModuleName(),
-                            "AvarageResponseTimeInternalComponent",
-                            parametersTest, null, null, "METRIC > "
-                                    + EXPECTED_RESPONSE_TIME_THRESHOLD,
-                            "AvarageResponseTimeViolation_" + i.getModuleName());
-                    break;
+            case "cpuRule":
+                parametersTest.clear();
+                parametersTest.put("samplingTime", "10");
+                TestUtils.testRule(rule, "10", "10", "VM",
+                        nodeTemplateId, "CPUUtilization",
+                        parametersTest, "Average", "VM", null,
+                        "AverageCpuUtilization_" + nodeTemplateId);
+                break;
 
-                case "checkStatusRule":
-                    parametersTest.clear();
-                    parametersTest.put("samplingTime", "10");
-                    TestUtils.testRule(rule, "10", "10", "InternalComponent",
-                            i.getModuleName(), "isAppOnFire", parametersTest,
-                            null, null, null,
-                            "ApplicationStatus_" + i.getModuleName());
-                    break;
+            case "ramRule":
+                parametersTest.clear();
+                parametersTest.put("samplingTime", "10");
+                TestUtils.testRule(rule, "10", "10", "VM",
+                        nodeTemplateId, "MemUsed",
+                        parametersTest, "Average", "VM", null,
+                        "AverageRamUtilization_" + nodeTemplateId);
+                break;
 
-                case "cpuRule":
-                    parametersTest.clear();
-                    parametersTest.put("samplingTime", "10");
-                    TestUtils.testRule(rule, "10", "10", "VM",
-                            i.getHost().getHostName(), "CPUUtilization",
-                            parametersTest, "Average", "VM", null,
-                            "AverageCpuUtilization_" + i.getHost().getHostName());
-                    break;
-
-                case "ramRule":
-                    parametersTest.clear();
-                    parametersTest.put("samplingTime", "10");
-                    TestUtils.testRule(rule, "10", "10", "VM",
-                            i.getHost().getHostName(), "MemUsed",
-                            parametersTest, "Average", "VM", null,
-                            "AverageRamUtilization_" + i.getHost().getHostName());
-                    break;
-
-                default:
-                    throw new Exception(
-                            "Test failure: monitoring rule with not valid id found.");
-                }
+            default:
+                throw new Exception(
+                        "Test failure: monitoring rule with not valid id found.");
             }
         }
+        
     }
 
     static String readFile(String path, Charset encoding) throws IOException {
