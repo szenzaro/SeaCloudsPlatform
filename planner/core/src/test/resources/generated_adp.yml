@@ -5,12 +5,15 @@ topology_template:
   node_templates:
     www:
       type: sc_req.www
+      properties:
+        language: JAVA
       requirements:
       - {endpoint: webservices}
       - {instancesPOC: 9, host: Rapidcloud_io_Asia_HK}
     webservices:
       type: sc_req.webservices
       properties:
+        language: JAVA
         java_version:
           constraints:
           - {greater_or_equal: '7'}
