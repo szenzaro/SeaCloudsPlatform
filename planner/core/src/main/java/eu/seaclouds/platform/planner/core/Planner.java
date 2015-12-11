@@ -40,7 +40,7 @@ import java.net.URI;
 import java.util.*;
 
 public class Planner {
-    static Logger log = LoggerFactory.getLogger(ToscaSerializer.class);
+    static Logger log = LoggerFactory.getLogger(Planner.class);
     private static final String DISCOVERER_PATH = "discoverer/";
 
     private final String discovererURL;

@@ -33,10 +33,12 @@ public class PlannerApplication extends Application<PlannerConfiguration> {
         DamGenResource dgr = new DamGenResource(plannerConfiguration.getMonitorGeneratorURL(),
                                                 plannerConfiguration.getMonitorGeneratorPort(),
                                                 plannerConfiguration.getSlaGeneratorURL());
+        RulesResource rr = new RulesResource();
 
         environment.jersey().register(pr);
         environment.jersey().register(rpr);
         environment.jersey().register(dgr);
+        environment.jersey().register(rr);
 
         //TODO: add health ckecks
     }
